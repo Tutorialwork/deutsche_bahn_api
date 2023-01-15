@@ -5,7 +5,7 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="deutsche-bahn-api",
-    version="1.0.2",
+    version="1.0.4",
     author="Tutorialwork",
     author_email="mail@manuelschuler.dev",
     description="A small package to work with the Deutsche Bahn timetables api",
@@ -14,6 +14,7 @@ setup(
     url="https://github.com/Tutorialwork/deutsche_bahn_api",
     packages=find_packages(),
     install_requires=["mpu", "requests"],
+    package_data={"deutsche_bahn_api": ["static/*"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
