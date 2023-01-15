@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
-with open("README.md", "r") as f:
-    long_description = f.read()
+with open("README.md", "r") as readme_file:
+    long_description = readme_file.read()
 
 setup(
     name="deutsche-bahn-api",
