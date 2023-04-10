@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
@@ -21,17 +21,21 @@ class TimetableHelper:
         self.station = station
         self.api_authentication = api_authentication
 
-    def get_timetable_xml(self, hour: Optional[int] = None) -> str:
+    def get_timetable_xml(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> str:
         hour_date: datetime = datetime.now()
         if hour:
             hour_date = datetime.strptime(str(hour), "%H")
-        date: str = datetime.now().strftime("%y%m%d")
+        date_string: str = datetime.now().strftime("%y%m%d")
+        if date is not None:
+            date_string = date.strftime("%y%m%d")
         hour: str = hour_date.strftime("%H")
         response = requests.get(
             f"https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
-            f"/plan/{self.station.EVA_NR}/{date}/{hour}",
+            f"/plan/{self.station.EVA_NR}/{date_string}/{hour}",
             headers=self.api_authentication.get_headers()
         )
+        if response.status_code == 410:
+            return self.get_timetable_xml(int(hour), datetime.now() + timedelta(days=1))
         return response.text
 
     def get_timetable(self, hour: Optional[int] = None) -> list[Train]:
