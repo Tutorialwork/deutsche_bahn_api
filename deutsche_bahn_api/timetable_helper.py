@@ -36,6 +36,12 @@ class TimetableHelper:
         )
         if response.status_code == 410:
             return self.get_timetable_xml(int(hour), datetime.now() + timedelta(days=1))
+        elif response.status_code == 401:
+            raise Exception("Can't request timetable because the credentials are not correct. Please make sure that "
+                            "you providing the correct credentials.")
+        elif response.status_code != 200:
+            raise Exception("Can't request timetable! The request failed with the HTTP status code {}: {}"
+                            .format(response.status_code, response.text))
         return response.text
 
     def get_timetable(self, hour: Optional[int] = None) -> list[Train]:
