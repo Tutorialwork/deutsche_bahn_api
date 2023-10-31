@@ -28,7 +28,6 @@ To get the timetable of a specific train station you can use the name or lat and
 
 ```python
 station_helper = StationHelper()
-station_helper.load_stations()
 found_stations = station_helper.find_stations_by_lat_long(47.996713, 7.842174, 10)
 found_stations_by_name = station_helper.find_stations_by_name("Freiburg")
 ```
