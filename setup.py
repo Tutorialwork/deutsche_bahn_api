@@ -5,7 +5,7 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="deutsche-bahn-api",
-    version="1.0.5",
+    version="1.0.6",
     author="Tutorialwork",
     author_email="mail@manuelschuler.dev",
     description="A small package to work with the Deutsche Bahn timetables api",
