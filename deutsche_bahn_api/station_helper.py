@@ -20,8 +20,12 @@ class StationHelper:
 
     def __init__(self) -> None:
         self.stations_list = []
+        self.load_stations()
 
     def load_stations(self):
+        if len(self.stations_list) > 0:
+            return
+
         json_raw = pkgutil.get_data(__name__, "static/train_stations_list.json")
         stations = json.loads(json_raw)
         for item in stations:
@@ -49,4 +53,3 @@ class StationHelper:
                 results.append(station)
 
         return results
-
