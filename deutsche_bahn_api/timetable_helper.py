@@ -3,55 +3,34 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
-import requests
 import xml.etree.ElementTree as elementTree
 
-from deutsche_bahn_api.api_authentication import ApiAuthentication
-from deutsche_bahn_api.message import Message, resolve_message_by_code
+from deutsche_bahn_api.api.requester import Requester
+from deutsche_bahn_api.message import Message, code_to_message
 from deutsche_bahn_api.station import Station
 from deutsche_bahn_api.train import Train
-from deutsche_bahn_api.train_changes import TrainChanges
 
 
 class TimetableHelper:
     station: Station
-    api_authentication: ApiAuthentication
+    requester: Requester
 
-    def __init__(self, station: Station, api_authentication: ApiAuthentication) -> None:
+    def __init__(self, station: Station, requester: Requester) -> None:
         self.station = station
-        self.api_authentication = api_authentication
+        self.requester = requester
 
-    def get_timetable_xml(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> str:
-        hour_date: datetime = datetime.now()
-        if hour:
-            hour_date = datetime.strptime(str(hour), "%H")
-        date_string: str = datetime.now().strftime("%y%m%d")
-        if date is not None:
-            date_string = date.strftime("%y%m%d")
-        hour: str = hour_date.strftime("%H")
-        response = requests.get(
-            f"https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
-            f"/plan/{self.station.EVA_NR}/{date_string}/{hour}",
-            headers=self.api_authentication.get_headers()
-        )
-        if response.status_code == 410:
-            return self.get_timetable_xml(int(hour), datetime.now() + timedelta(days=1))
-        elif response.status_code == 401:
-            raise Exception("Can't request timetable because the credentials are not correct. Please make sure that "
-                            "you providing the correct credentials.")
-        elif response.status_code != 200:
-            raise Exception("Can't request timetable! The request failed with the HTTP status code {}: {}"
-                            .format(response.status_code, response.text))
-        return response.text
+    def get_timetable_complete(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> list[Train]:
+        trains = self.get_timetable(hour, date)
+        return self.get_timetable_changes(trains)
 
-    def get_timetable(self, hour: Optional[int] = None) -> list[Train]:
-        train_list: list[Train] = []
-        trains = elementTree.fromstringlist(self.get_timetable_xml(hour))
-        for train in trains:
+    def get_timetable(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> list[Train]:
+        trains: list[Train] = []
+        trains_xml = elementTree.fromstringlist(self.requester.request_timetable(self.station.eva_nr, hour, date))
+        for train_xml in trains_xml:
             trip_label_object: dict[str, str] | None = None
             arrival_object: dict[str, str] | None = None
             departure_object: dict[str, str] | None = None
-            for train_details in train:
+            for train_details in train_xml:
                 if train_details.tag == "tl":
                     trip_label_object = train_details.attrib
                 if train_details.tag == "dp":
@@ -59,77 +38,79 @@ class TimetableHelper:
                 if train_details.tag == "ar":
                     arrival_object = train_details.attrib
 
-            if not departure_object:
-                """ Arrival without department """
-                continue
+            train: Train = Train()
 
-            train_object: Train = Train()
-            train_object.stop_id = train.attrib["id"]
-            train_object.train_type = trip_label_object["c"]
-            train_object.train_number = trip_label_object["n"]
-            train_object.platform = departure_object['pp']
-            train_object.stations = departure_object['ppth']
-            train_object.departure = departure_object['pt']
+            train.id = train_xml.attrib.get("id")
 
-            if "f" in trip_label_object:
-                train_object.trip_type = trip_label_object["f"]
-
-            if "l" in departure_object:
-                train_object.train_line = departure_object['l']
+            if trip_label_object:
+                train.train_type = trip_label_object.get("c")
+                train.train_number = trip_label_object.get("n")
 
             if arrival_object:
-                train_object.passed_stations = arrival_object['ppth']
-                train_object.arrival = arrival_object['pt']
+                train.planned_arrival_path = arrival_object['ppth']
+                train.planned_arrival = datetime.strptime(arrival_object['pt'], "%y%m%d%H%M")
 
-            train_list.append(train_object)
+            if departure_object:
+                train.train_line = departure_object.get('l')
+                train.planned_platform = departure_object.get('pp')
+                train.planned_departure_path = departure_object.get('ppth')
+                train.planned_departure = datetime.strptime(departure_object.get('pt'), "%y%m%d%H%M")
 
-        return train_list
+            trains.append(train)
+
+        return trains
 
     def get_timetable_changes(self, trains: list) -> list[Train]:
-        response = requests.get(
-            f"https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/fchg/{self.station.EVA_NR}",
-            headers=self.api_authentication.get_headers()
-        )
-        changed_trains = elementTree.fromstringlist(response.text)
-
-        train_list: list[Train] = []
+        changed_trains = elementTree.fromstringlist(self.requester.request_timetable_changes(self.station.eva_nr))
 
         for changed_train in changed_trains:
             found_train: Train | None = None
-            train_changes: TrainChanges = TrainChanges()
-            train_changes.messages = []
 
             for train in trains:
-                if train.stop_id == changed_train.attrib["id"]:
+                if train.id == changed_train.attrib["id"]:
                     found_train = train
 
             if not found_train:
                 continue
 
             for changes in changed_train:
+                if changes.tag == "m":
+                    found_train.message = Message(
+                        id=changes.get("id"),
+                        code=changes.get("c"),
+                        timestamp=changes.get("ts-tts"),
+                        type_code=changes.get("t"),
+                        priority=changes.get("pr"),
+                        category=changes.get("cat"),
+                        from_timestamp=changes.get("from"),
+                        to_timestamp=changes.get("to"),
+                    )
+
                 if changes.tag == "dp":
-                    if "ct" in changes.attrib:
-                        train_changes.departure = changes.attrib["ct"]
-                    if "cpth" in changes.attrib:
-                        train_changes.stations = changes.attrib["cpth"]
-                    if "cp" in changes.attrib:
-                        train_changes.platform = changes.attrib["cp"]
+                    ct = changes.get("ct")
+                    found_train.changed_departure = datetime.strptime(changes.get("ct"), "%y%m%d%H%M") if ct else None
+                    found_train.changed_departure_path = changes.get("cpth")
+                    found_train.planned_platform = changes.get("cp")
+
+                    for message in changes:
+                        found_train.departure_messages.append(Message(
+                            id=message.get("id"),
+                            code=message.get("c"),
+                            timestamp=message.get("ts-tts"),
+                            type_code=message.get("t"),
+                        ))
 
                 if changes.tag == "ar":
-                    if "ct" in changes.attrib:
-                        train_changes.arrival = changes.attrib["ct"]
-                    if "cpth" in changes.attrib:
-                        train_changes.passed_stations = changes.attrib["cpth"]
+                    ct = changes.get("ct")
+                    found_train.changed_arrival = datetime.strptime(changes.get("ct"), "%y%m%d%H%M") if ct else None
+                    found_train.changed_arrival_path = changes.get("cpth")
 
-                for message in changes:
-                    new_message = Message()
-                    new_message.id = message.attrib["id"]
-                    new_message.code = message.attrib["c"]
-                    new_message.time = message.attrib["ts"]
-                    new_message.message = resolve_message_by_code(int(message.attrib["c"]))
-                    train_changes.messages.append(new_message)
+                    for message in changes:
+                        found_train.arrival_messages.append(Message(
+                            id=message.get("id"),
+                            code=message.get("c"),
+                            timestamp=message.get("ts-tts"),
+                            type_code=message.get("t"),
+                        ))
 
-            found_train.train_changes = train_changes
-            train_list.append(found_train)
-
-        return train_list
+        return trains
