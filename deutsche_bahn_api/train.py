@@ -30,7 +30,7 @@ class Train:
 
     def __str__(self):
         return (
-            "{:>3} {:<5} || {:^16} | {:^5} || {:^16} | {:^5}"
+            "{:>3} {:<5} | {:^16} | {:^5} | {:^16} | {:^5}"
         ).format(self.train_type,
                  self.train_number,
                  datetime.strftime(self.planned_arrival, "%Y-%m-%d %H:%M") if self.planned_arrival is not None else "",

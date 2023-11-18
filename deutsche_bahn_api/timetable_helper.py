@@ -19,13 +19,13 @@ class TimetableHelper:
         self.station = station
         self.requester = requester
 
-    def get_complete(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> list[Train]:
+    def get_timetable_complete(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> list[Train]:
         trains = self.get_timetable(hour, date)
         return self.get_timetable_changes(trains)
 
     def get_timetable(self, hour: Optional[int] = None, date: Optional[datetime] = None) -> list[Train]:
         trains: list[Train] = []
-        trains_xml = elementTree.fromstringlist(self.requester.request_timetable(self.station.EVA_NR, hour, date))
+        trains_xml = elementTree.fromstringlist(self.requester.request_timetable(self.station.eva_nr, hour, date))
         for train_xml in trains_xml:
             trip_label_object: dict[str, str] | None = None
             arrival_object: dict[str, str] | None = None
@@ -61,7 +61,7 @@ class TimetableHelper:
         return trains
 
     def get_timetable_changes(self, trains: list) -> list[Train]:
-        changed_trains = elementTree.fromstringlist(self.requester.request_timetable_changes(self.station.EVA_NR))
+        changed_trains = elementTree.fromstringlist(self.requester.request_timetable_changes(self.station.eva_nr))
 
         for changed_train in changed_trains:
             found_train: Train | None = None
@@ -87,7 +87,8 @@ class TimetableHelper:
                     )
 
                 if changes.tag == "dp":
-                    found_train.changed_departure = datetime.strptime(changes.get("ct"), "%y%m%d%H%M")
+                    ct = changes.get("ct")
+                    found_train.changed_departure = datetime.strptime(changes.get("ct"), "%y%m%d%H%M") if ct else None
                     found_train.changed_departure_path = changes.get("cpth")
                     found_train.planned_platform = changes.get("cp")
 
@@ -100,7 +101,8 @@ class TimetableHelper:
                         ))
 
                 if changes.tag == "ar":
-                    found_train.changed_arrival = datetime.strptime(changes.get("ct"), "%y%m%d%H%M")
+                    ct = changes.get("ct")
+                    found_train.changed_arrival = datetime.strptime(changes.get("ct"), "%y%m%d%H%M") if ct else None
                     found_train.changed_arrival_path = changes.get("cpth")
 
                     for message in changes:
