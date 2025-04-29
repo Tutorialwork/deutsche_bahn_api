@@ -125,7 +125,8 @@ class TimetableHelper:
                     new_message = Message()
                     new_message.id = message.attrib["id"]
                     new_message.code = message.attrib["c"]
-                    new_message.time = message.attrib["ts"]
+                    if "ts" in message.attrib:
+                        new_message.time = message.attrib["ts"]
                     new_message.message = resolve_message_by_code(int(message.attrib["c"]))
                     train_changes.messages.append(new_message)
 
