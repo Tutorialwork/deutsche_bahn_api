@@ -32,7 +32,7 @@ class TimetableHelper:
         response = requests.get(
             f"https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
             f"/plan/{self.station.EVA_NR}/{date_string}/{hour}",
-            headers=self.api_authentication.get_headers()
+            headers=self.api_authentication.get_headers(),
         )
         if response.status_code == 410:
             return self.get_timetable_xml(int(hour), datetime.now() + timedelta(days=1))
@@ -59,23 +59,27 @@ class TimetableHelper:
                 if train_details.tag == "ar":
                     arrival_object = train_details.attrib
 
-            if not departure_object:
-                """ Arrival without department """
-                continue
-
             train_object: Train = Train()
             train_object.stop_id = train.attrib["id"]
             train_object.train_type = trip_label_object["c"]
             train_object.train_number = trip_label_object["n"]
-            train_object.platform = departure_object['pp']
-            train_object.stations = departure_object['ppth']
-            train_object.departure = departure_object['pt']
+            # If Stop has departure_object, get some informations from it
+            if departure_object:
+                train_object.platform = departure_object['pp']
+                train_object.stations = departure_object['ppth']
+                train_object.departure = departure_object['pt']
+                if "l" in departure_object:
+                    train_object.train_line = departure_object['l']
+            # If not, get them from arrival_object
+            else:
+                train_object.platform = arrival_object['pp']
+                if "l" in arrival_object:
+                    train_object.train_line = arrival_object['l']                
 
             if "f" in trip_label_object:
                 train_object.trip_type = trip_label_object["f"]
 
-            if "l" in departure_object:
-                train_object.train_line = departure_object['l']
+
 
             if arrival_object:
                 train_object.passed_stations = arrival_object['ppth']
@@ -114,12 +118,18 @@ class TimetableHelper:
                         train_changes.stations = changes.attrib["cpth"]
                     if "cp" in changes.attrib:
                         train_changes.platform = changes.attrib["cp"]
+                    if "cs" in changes.attrib:
+                        train_changes.departure_cancelled = changes.attrib["cs"]
 
                 if changes.tag == "ar":
                     if "ct" in changes.attrib:
                         train_changes.arrival = changes.attrib["ct"]
                     if "cpth" in changes.attrib:
                         train_changes.passed_stations = changes.attrib["cpth"]
+                    if "cp" in changes.attrib:
+                        train_changes.platform = changes.attrib["cp"]
+                    if "cs" in changes.attrib:
+                        train_changes.arrival_cancelled = changes.attrib["cs"]
 
                 for message in changes:
                     new_message = Message()

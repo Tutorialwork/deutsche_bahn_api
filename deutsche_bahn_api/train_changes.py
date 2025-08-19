@@ -9,3 +9,5 @@ class TrainChanges:
     stations: str
     platform: str
     messages: list[Message]
+    arrival_cancelled: str
+    departure_cancelled: str

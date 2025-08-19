@@ -13,7 +13,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Tutorialwork/deutsche_bahn_api",
     packages=find_packages(),
-    install_requires=["mpu", "requests"],
+    install_requires=["haversine", "requests"],
     package_data={"deutsche_bahn_api": ["static/*"]},
     classifiers=[
         "Programming Language :: Python :: 3",

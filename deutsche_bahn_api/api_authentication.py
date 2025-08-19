@@ -12,7 +12,7 @@ class ApiAuthentication:
             headers={
                 "DB-Api-Key": self.client_secret,
                 "DB-Client-Id": self.client_id,
-            }
+            },
         )
         return response.status_code == 200
 
